@@ -4,7 +4,12 @@ const errorHandler = (err, req, res, next) => {
   logger.error(`${err.message} — ${req.method} ${req.originalUrl}${err.stack ? `\n${err.stack}` : ''}`);
 
   let statusCode = err.statusCode || 500;
-  let message = err.message || 'Internal Server Error';
+  // err.message is coerced through String() and falls back to a fixed
+  // string for any falsy value (undefined, null, "") - this guarantees the
+  // client never receives a body of literal `null` (e.g. from `throw null`
+  // or `throw new Error()`), which previously broke the frontend's
+  // JSON.parse of the error blob (QuotationDetailPage.jsx).
+  let message = (err && err.message) ? String(err.message) : 'Internal Server Error';
   let recognized = Boolean(err.statusCode);
 
   // Mongoose duplicate key

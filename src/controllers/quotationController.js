@@ -564,7 +564,20 @@ exports.generateAndDownloadPdf = async (req, res) => {
   if (!q) return res.status(404).json({ success: false, message: "Quotation not found." });
   if (!ownsOrIsAdmin(req.user, q)) return res.status(403).json({ success: false, message: "You do not have access to this quotation." });
 
-  const buffer = await generateQuotationPdfBuffer(q);
+  let buffer;
+  try {
+    buffer = await generateQuotationPdfBuffer(q);
+  } catch (err) {
+    // PDF generation errors were previously only surfaced to the client as
+    // a generic toast (the frontend requests this endpoint with
+    // responseType: "blob", so it can't read err.response.data.message on
+    // failure - see QuotationDetailPage.jsx). Log the real cause here with
+    // its full stack so it's diagnosable from the server logs even though
+    // the client-facing message stays generic; errorHandler.js also logs
+    // it, but this ties the failure explicitly to the quotation/PDF step.
+    logger.error(`PDF generation failed for quotation ${q._id} (${q.quotNo}): ${err.message}\n${err.stack}`);
+    throw err;
+  }
   const storedFilename = await saveFile(buffer, "pdf");
   const originalFilename = `${q.quotNo.replace(/\//g, "-")}-Rev${q.revisionNumber}.pdf`;
 
