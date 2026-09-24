@@ -28,8 +28,11 @@ const PAGE_WIDTH = PAGE_RIGHT - PAGE_LEFT;
 // ---------------------------------------------------------------------
 const HEADER_IMG = path.join(__dirname, "../assets/letterhead-header.png");
 const FOOTER_IMG = path.join(__dirname, "../assets/letterhead-footer.png");
-const HEADER_ASPECT = 120 / 667; // height / width of the source header PNG
-const FOOTER_ASPECT = 107 / 661; // height / width of the source footer PNG
+const SIGNATURE_IMG = path.join(__dirname, "../assets/authorised-signature.png");
+const HEADER_ASPECT = 116 / 660; // height / width of the source header PNG (post-crop)
+const FOOTER_ASPECT = 105 / 657; // height / width of the source footer PNG (post-crop)
+const SIGNATURE_ASPECT = 167 / 457; // height / width of the source signature/stamp PNG
+const SIGNATURE_WIDTH = 165; // pt, on the page
 
 const headerHeightFor = (doc) => doc.page.width * HEADER_ASPECT;
 const footerHeightFor = (doc) => doc.page.width * FOOTER_ASPECT;
@@ -173,8 +176,8 @@ async function generateQuotationPdfBuffer(quotation) {
 
       doc.fontSize(9).font("Helvetica").fillColor(TEXT);
       doc.text(String(i + 1), cols.idx + 6, y + rowPad, { width: 20 });
-      doc.text(item.name || item.serviceName || item.service || "-", cols.desc, y + rowPad, { width: 320 });
-      doc.text(String(item.qty ?? 1), cols.qty, y + rowPad, { width: 40, align: "right" });
+      doc.text(item.name, cols.desc, y + rowPad, { width: 320 });
+      doc.text(String(item.qty), cols.qty, y + rowPad, { width: 40, align: "right" });
       doc.text(fmt(item.unitPrice), cols.price, y + rowPad, { width: 65, align: "right" });
       doc.text(fmt(item.lineTotal ?? item.lineAmount), cols.amount, y + rowPad, { width: 68, align: "right" });
 
@@ -234,9 +237,17 @@ async function generateQuotationPdfBuffer(quotation) {
 
     // ---------- Signature block ----------
     doc.moveDown(1.2);
-    if (doc.y + 40 > bodyBottom) { doc.addPage(); doc.y = bodyTop; }
+    const signatureH = SIGNATURE_WIDTH * SIGNATURE_ASPECT;
+    const signatureBlockH = 14 + signatureH + 14; // "For ..." line + stamp + "Authorised Signatory" line
+    if (doc.y + signatureBlockH > bodyBottom) { doc.addPage(); doc.y = bodyTop; }
     doc.fontSize(9.5).font("Helvetica-Bold").fillColor(TEXT).text(`For ${settings.company}`, PAGE_LEFT, doc.y);
-    doc.moveDown(2);
+    const signatureY = doc.y + 6;
+    try {
+      doc.image(SIGNATURE_IMG, PAGE_LEFT, signatureY, { width: SIGNATURE_WIDTH, height: signatureH });
+    } catch (err) {
+      // Missing/unreadable asset - fall back to blank space, don't crash PDF generation.
+    }
+    doc.y = signatureY + signatureH + 4;
     doc.fontSize(9).font("Helvetica").fillColor(MUTED).text("Authorised Signatory", PAGE_LEFT, doc.y);
 
     // ---------- Approval / acceptance trail (kept for audit purposes) ----------
